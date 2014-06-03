@@ -1,4 +1,0 @@
-sensorweb
-=========
-
-schemaless sensorweb middleware
