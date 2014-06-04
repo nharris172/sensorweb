@@ -2,6 +2,7 @@
  in the database"""
 import nclsensorweb.classes as cl
 import psycopg2
+from pygeocoder import Geocoder
 
 class DatabaseConnection:
     """handles all database connections"""
@@ -104,6 +105,13 @@ class SensorFunctions:
                     'active':_active, 'auth_needed': _auth_needed}
         sensor.update_info(info_dict)
         return sensor
+    
+    def get_tag_values(self,tag):
+        """retrieves all the entries with the tag"""
+        query_string = "select array_agg(distinct(info->'%s')) from sensors" %(tag,)
+        response = self.sensorweb.database_connection.query(query_string)
+        if response:
+            return [str(item) for item in response[0][0]]
         
 class GeospatialFunctions:
     """create Goesatial function class"""
@@ -176,6 +184,13 @@ class SensorWeb:
                         % (lon, lat,)
         geom = self.database_connection.query(query_string)
         return geom[0][0]
+    
+    def geocode_placename(self,name):
+        geom_results = Geocoder.geocode(name)
+        lat,lon = geom_results[0].coordinates
+        print  lat,lon
+        geom_binary = self.make_geom(lat,lon)
+        return geom_binary
     
     def wkt_to_geom(self, wkt):
         """converts WKT to postgis binary geometry"""

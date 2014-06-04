@@ -4,6 +4,35 @@ import nclsensorweb.tools as sensor_tools
 import datetime
 
 DATETIME_STRFORMAT = '%Y-%m-%d %H:%M:%S'
+     
+class SensorGroup:
+    """Class for group of sensors"""
+    def __init__(self,database_connection,_sensors):
+        self.database = database_connection
+        self.sensors = _sensors
+        
+    def get_latest(self,):
+        sensor_names = ','.join(["'%s'" %(sensor.name,) for sensor in self.sensors])
+        query_string = "select count(proper_timestamp(info->'timestamp')) \
+         from sensor_data where info->'sensor_id' in (%s) " % (sensor_names,)
+        limit = ''
+        response = self.database.query(query_string)
+        if response[0][0] == 0:
+            return None
+        elif response[0][0] >= 100:
+            limit = 'limit 1'
+        query_string  =  " select proper_timestamp(info->'timestamp') from sensor_data \
+                                    where info->'sensor_id'in (%s) order by \
+                                    proper_timestamp(info->'timestamp') desc %s" % (sensor_names,limit,)
+        print query_string
+        response = self.database.query(query_string)
+        return response[0][0]
+        
+    def __iter__(self,):
+        return (sensor for sensor in self.sensors)
+    
+    def __getitem__(self,index):
+        return self.sensors[index]
 
 class Sensor:
     """Sensor class"""
@@ -43,7 +72,6 @@ class Sensor:
         insert_string = " update sensors set info = info||'%s'::hstore \
                             where info ->'name' = '%s' " \
                             % (','.join(hstore), self.name)
-        print insert_string
         self.database.insert(insert_string)
         
     def add_data(self, timestamp, reading, units, value, extra):
@@ -59,6 +87,28 @@ class Sensor:
         insert_string = "insert into sensor_data (info) values ('%s')"\
                                                         % (','.join(hstore),)
         self.database.insert(insert_string)
+        
+        
+    def get_readings(self,):
+        query_string = "select distinct(info->'reading') from sensor_data where info->'sensor_id' = '%s'" % (self.name,)
+        return [str(item[0]) for item in self.database.query(query_string)]
+    
+    def last_record(self,):
+        query_string = "select count(proper_timestamp(info->'timestamp')) \
+         from sensor_data where info->'sensor_id' = '%s' " % (self.name,)
+        limit = ''
+        response = self.database.query(query_string)
+        if response[0][0] == 0:
+            return None
+        elif response[0][0] >= 100:
+            limit = 'limit 1'
+
+        query_string  =  " select proper_timestamp(info->'timestamp') from sensor_data \
+                                    where info->'sensor_id' = '%s' order by \
+                                    proper_timestamp(info->'timestamp') desc %s" % (self.name,limit)
+        response = self.database.query(query_string)
+        if response:
+            return response[0][0]
         
     def get_data(self, starttime, endtime):
         """retrieves all the data entries for a sensor between 2 times"""
@@ -88,6 +138,12 @@ class Sensor:
             if data['data']:
                 data_list.append(Data(data['variable'], data['data']))
         return data_list
+    
+    def add_readings_from_dict(self,readings_dict):
+        for name,info in readings_dict.iteritems():
+            if 'extra' not in info.keys():
+                info['extra'] ={}
+            self.add_data(info['timestamp'],name,info['units'],info['value'],info['extra'])
     
     def json(self,):
         """return json of sensor object"""
