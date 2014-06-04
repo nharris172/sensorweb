@@ -53,7 +53,7 @@ class SensorFunctions:
                     str(info['type'])
                     )
                 )
-        return sensors
+        return cl.SensorGroup(self.sensorweb.database_connection, sensors)
 
         
         
@@ -77,7 +77,7 @@ class SensorFunctions:
                     info['type']
                     )
                 )
-        return sensors
+        return cl.SensorGroup(self.sensorweb.database_connection, sensors)
 
     def create(self, _name, _geom, _type, _source, _active, _auth_needed):
         """creates a sensor entry"""
