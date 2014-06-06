@@ -1,6 +1,8 @@
 """Handles all interactions with the sensors and geospatial data
  in the database"""
 import nclsensorweb.classes as cl
+import nclsensorweb.tools as tools
+import nclsensorweb.errors as error
 import psycopg2
 from pygeocoder import Geocoder
 
@@ -30,11 +32,33 @@ class SensorFunctions:
     def __init__(self, sensorweb):
         self.sensorweb = sensorweb
         
+    def __dict_to_sensor(self,info_dict):
+            name = info_dict['name']
+            id = info_dict['sensor_int_id']
+            geom = info_dict['geom']
+            active = info_dict['active']
+            source = info_dict['source']
+            type = info_dict['type']
+            del info_dict['name'],info_dict['sensor_int_id'],info_dict['geom'],
+            info_dict['active'],info_dict['source'], info_dict['type']
+            return cl.Sensor(
+                    self.sensorweb.database_connection,
+                    name,
+                    id,
+                    geom, 
+                    active, 
+                    source, 
+                    type,
+                    info_dict
+                    )
+
+        
     def get_all(self, logged_in=False):
         """Retrieves relevant metadata for each 
         sensor stored in metadata database"""
         query_string = "select hstore_to_matrix(info) as info from sensors"
-        clause = "info->'active' = 'True' and info ? 'special_tag' = False"
+        clause = "info->'active' = 'True' and info ? 'special_tag' = False and \
+        info ? 'flag' = False"
         if not logged_in:
             clause += " and info->'auth_needed' = 'False'"
         if clause:
@@ -43,57 +67,49 @@ class SensorFunctions:
         sensors = []
         for sens in sens_row:
             info = dict(sens[0])
-            sensors.append(
-                cl.Sensor(
-                    self.sensorweb.database_connection,
-                    str(info['name']),
-                    str(info['geom']),
-                    str(info['active']),
-                    str(info['source']),
-                    str(info['type'])
-                    )
-                )
+            sensor = self.__dict_to_sensor(info)
+            sensors.append(sensor)
         return cl.SensorGroup(self.sensorweb.database_connection, sensors)
 
         
         
     def get(self, key, value):
         """retrives sensors matching the key value"""
-        query_string = "select hstore_to_matrix(info) as info from sensors"
+        query_string = "select hstore_to_matrix(info) as info from sensors \
+         where info->'active' = 'True' and info ? 'flag' = False"
         clause = " info->'%s' = '%s'" % (key, value)
         if clause:
-            query_string += ' where %s' % (clause,)
+            query_string += ' and %s' % (clause,)
         sens_row = self.sensorweb.database_connection.query(query_string)
         sensors = []
         for sens in sens_row:
             info = dict(sens[0])
-            sensors.append(
-                cl.Sensor(
-                    self.sensorweb.database_connection,
-                    info['name'],
-                    info['geom'], 
-                    info['active'], 
-                    info['source'], 
-                    info['type']
-                    )
-                )
+            sensor = self.__dict_to_sensor(info)
+            sensors.append(sensor)
         return cl.SensorGroup(self.sensorweb.database_connection, sensors)
 
-    def create(self, _name, _geom, _type, _source, _active, _auth_needed):
+    def create(self, _name, _geom, _type, _source, _active, _auth_needed,_extra={}):
         """creates a sensor entry"""
+        new_type ,_type = self.sensorweb.check_tag('sensors','type',_type)
+        new_source,_source = check_tag('sensors','source',_source)
+        query_string = "select max(sensor_int_id_caster(info -> 'sensor_int_id'::text) ) from sensors"
+        sens_id = self.sensorweb.database_connection.query(query_string)
+        id = sens_id[0][0] +1
         sensor = cl.Sensor(
                     self.sensorweb.database_connection, 
-                    _name, 
+                    _name,
+                    id, 
                     _geom, 
                     _active, 
                     _source,
-                    _type)
+                    _type,
+                    _extra)
                     
         sensor.link()
         return sensor
         
     def create_or_update(self, _name, _geom, _type,
-                    _source, _active, _auth_needed):
+                    _source, _active, _auth_needed,_extra ={}):
         """Creates sensor entry or updates one with with the matching name"""
         sensor =  self.get('name', _name)
         if not sensor:
@@ -103,6 +119,7 @@ class SensorFunctions:
             sensor = sensor[0]
         info_dict = {'geom':_geom, 'type':_type, 'source': _source,
                     'active':_active, 'auth_needed': _auth_needed}
+        info_dict.update(_extra)
         sensor.update_info(info_dict)
         return sensor
     
@@ -177,6 +194,22 @@ class SensorWeb:
         if add_ons:
             for add_on in add_ons:
                 setattr(self, add_on.name, add_on(self))
+                
+    def _check_tag(self,table_name,tag_name,tag_value):
+        query_string = "select info->'%s' from tags where table_name = '%s'" \
+                        % (tag_name,table_name)
+        existing_tags = self.database_connection.query(query_string)[0][0].strip('{}')
+        existing_tags = existing_tags.replace('"','')
+        existing_tags = existing_tags.split(',')
+        tag_scores = {}
+        for ex_tag in existing_tags:
+            tag_scores[tools.levenshtein(ex_tag,tag_value)] = ex_tag
+        min_score = min(tag_scores.keys())
+        if min_score < 4:
+
+            return False,tag_scores[min_score]
+        
+        return True,' '.join([part.capitalize() for part in tag_value.split(' ')])
 
     def make_geom(self, lat, lon):
         """creates postgis binary geometry from lat and lon"""
@@ -188,7 +221,6 @@ class SensorWeb:
     def geocode_placename(self,name):
         geom_results = Geocoder.geocode(name)
         lat,lon = geom_results[0].coordinates
-        print  lat,lon
         geom_binary = self.make_geom(lat,lon)
         return geom_binary
     
