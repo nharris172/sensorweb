@@ -99,8 +99,8 @@ class SensorFunctions:
 
     def create(self, _name, _geom, _type, _source, _active, _auth_needed,_extra={}):
         """creates a sensor entry"""
-        new_type ,_type = self.sensorweb.check_tag('sensors','type',_type)
-        new_source,_source = check_tag('sensors','source',_source)
+        new_type ,_type = self.sensorweb._check_tag('sensors','type',_type)
+        new_source,_source = self.sensorweb._check_tag('sensors','source',_source)
         query_string = "select max(sensor_int_id_caster(info -> 'sensor_int_id'::text) ) from sensors"
         sens_id = self.sensorweb.database_connection.query(query_string)
         id = sens_id[0][0] +1
