@@ -62,7 +62,7 @@ class Sensor:
             return (True,reading_value)
         if units not in units_conversion.keys():
             return (False,None,)
-        return (True,float(nits_conversion[units])* float(reading_value),)
+        return (True,float(units_conversion[units])* float(reading_value),)
     
     def __default_units(self,reading_name):
         query_string = "select default_units from readings \
