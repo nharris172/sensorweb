@@ -72,7 +72,8 @@ class SensorFunctions:
             info = dict(sens[0])
             sensor = self.__dict_to_sensor(info)
             sensors.append(sensor)
-        return cl.SensorGroup(self.sensorweb.database_connection, sensors)
+        if sensors:
+            return cl.SensorGroup(self.sensorweb.database_connection, sensors)
 
         
         
@@ -93,7 +94,8 @@ class SensorFunctions:
             info = dict(sens[0])
             sensor = self.__dict_to_sensor(info)
             sensors.append(sensor)
-        return cl.SensorGroup(self.sensorweb.database_connection, sensors)
+        if sensors:
+            return cl.SensorGroup(self.sensorweb.database_connection, sensors)
 
     def create(self, _name, _geom, _type, _source, _active, _auth_needed,_extra={}):
         """creates a sensor entry"""
