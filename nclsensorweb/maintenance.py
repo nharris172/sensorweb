@@ -24,10 +24,11 @@ class maintenance_class:
                 continue
             flag_value = False
             if 'min_val' in reading_flag_checker[info['reading']].keys():
-                if float(info['value']) < reading_flag_checker[info['reading']]['min_val']:
+                if float(info['value']) < float(reading_flag_checker[info['reading']]['min_val']):
+                    print info['reading'],float(info['value']),float(reading_flag_checker[info['reading']]['min_val'])
                     flag_value = True
-            if 'mmax_val' in reading_flag_checker[info['reading']].keys():
-                if float(info['value']) > reading_flag_checker[info['reading']]['max_val']:
+            if 'max_val' in reading_flag_checker[info['reading']].keys():
+                if float(info['value']) > float(reading_flag_checker[info['reading']]['max_val']):
                     flag_value = True
             info_string = "delete(info,'raw')"
             if flag_value:
