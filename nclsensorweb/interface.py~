@@ -118,7 +118,7 @@ class SensorFunctions:
     def create_or_update(self, _name, _geom, _type,
                     _source, _active, _auth_needed,_extra ={}):
         """Creates sensor entry or updates one with with the matching name"""
-        sensor =  self.get('name', _name)
+        sensor =  self.get('name', _name,active=False, not_flagged=False)
         if not sensor:
             sensor = self.create(_name, _geom, _type, 
                                 _source, _active, _auth_needed)
