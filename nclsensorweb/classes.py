@@ -50,7 +50,7 @@ class Sensor:
         
         
     def __check_reading(self,reading_name,units,reading_value):
-        query_string = "select default_units, hstore_to_matrix(unit_conversion),\
+        query_string = "select default_units, hstore_to_matrix(unit_conversion)\
          from readings where reading_name = '%s'" %(
         reading_name,)
         reading_info = self.database.query(query_string)[0]

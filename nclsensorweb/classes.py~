@@ -143,13 +143,13 @@ class Sensor:
             
             info = dict(row[0])
             
-
+            units = self.__default_units(info['reading'])
             
-            variable = Variable(info['reading'], info['units'], info['theme'])
+            variable = Variable(info['reading'], units, info['theme'])
             _var_info[info['reading']] = _var_info.get(info['reading'],
                                                {'variable':variable,'data':[]})
             if info['value']:
-                reading_ok,value,units = self.__check_reading(info['reading'],
+                reading_ok,value = self.__check_reading(info['reading'],
                                                         info['units'],info['value'])
                 if reading_ok:
                     _var_info[info['reading']]['data'].append([
