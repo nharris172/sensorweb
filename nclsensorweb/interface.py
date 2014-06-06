@@ -53,14 +53,18 @@ class SensorFunctions:
                     )
 
         
-    def get_all(self, logged_in=False):
+    def get_all(self, logged_in=False, active=True, not_flagged=True):
         """Retrieves relevant metadata for each 
         sensor stored in metadata database"""
         query_string = "select hstore_to_matrix(info) as info from sensors"
-        clause = "info->'active' = 'True' and info ? 'special_tag' = False and \
+        clause = "info ? 'special_tag' = False and \
         info ? 'flag' = False"
         if not logged_in:
             clause += " and info->'auth_needed' = 'False'"
+        if active:
+            clause += " and info->'active' = 'True' "
+        if not_flagged:
+            clause += " info ? 'flag' = False "
         if clause:
             query_string += ' where %s' % (clause,)
         sens_row = self.sensorweb.database_connection.query(query_string)
@@ -73,11 +77,15 @@ class SensorFunctions:
 
         
         
-    def get(self, key, value):
+    def get(self, key, value,active=True, not_flagged=True):
         """retrives sensors matching the key value"""
         query_string = "select hstore_to_matrix(info) as info from sensors \
-         where info->'active' = 'True' and info ? 'flag' = False"
+         where "
         clause = " info->'%s' = '%s'" % (key, value)
+        if active:
+            clause += " and info->'active' = 'True' "
+        if not_flagged:
+            clause += " info ? 'flag' = False "
         if clause:
             query_string += ' and %s' % (clause,)
         sens_row = self.sensorweb.database_connection.query(query_string)
