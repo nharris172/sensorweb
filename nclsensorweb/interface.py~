@@ -57,7 +57,7 @@ class SensorFunctions:
         """Retrieves relevant metadata for each 
         sensor stored in metadata database"""
         query_string = "select hstore_to_matrix(info) as info from sensors"
-        clause = "info ? 'special_tag' "
+        clause = ""
         if not logged_in:
             clause += " and info->'auth_needed' = 'False'"
         if active:
