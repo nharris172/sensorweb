@@ -1,6 +1,7 @@
 """Handles all interactions with the sensors and geospatial data
  in the database"""
 import nclsensorweb.classes as cl
+import nclsensorweb.maintenance as maintenance
 import nclsensorweb.tools as tools
 import nclsensorweb.errors as error
 import psycopg2
@@ -57,7 +58,7 @@ class SensorFunctions:
         """Retrieves relevant metadata for each 
         sensor stored in metadata database"""
         query_string = "select hstore_to_matrix(info) as info from sensors"
-        clause = "where info ? 'name'"
+        clause = " info ? 'name'"
         if not logged_in:
             clause += " and info->'auth_needed' = 'False'"
         if active:
@@ -200,6 +201,7 @@ class SensorWeb:
                                                     user, password)
         self.sensors = SensorFunctions(self)
         self.geospatial = GeospatialFunctions(self)
+        self.maintenance = maintenance(self)
         if add_ons:
             for add_on in add_ons:
                 setattr(self, add_on.name, add_on(self))

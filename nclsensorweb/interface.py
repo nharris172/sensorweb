@@ -1,6 +1,7 @@
 """Handles all interactions with the sensors and geospatial data
  in the database"""
 import nclsensorweb.classes as cl
+import nclsensorweb.maintenance as maintenance
 import nclsensorweb.tools as tools
 import nclsensorweb.errors as error
 import psycopg2
@@ -200,6 +201,7 @@ class SensorWeb:
                                                     user, password)
         self.sensors = SensorFunctions(self)
         self.geospatial = GeospatialFunctions(self)
+        self.maintenance = maintenance.maintenance_class(self)
         if add_ons:
             for add_on in add_ons:
                 setattr(self, add_on.name, add_on(self))
