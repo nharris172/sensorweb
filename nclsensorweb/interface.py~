@@ -85,9 +85,9 @@ class SensorFunctions:
         if active:
             clause += " and info->'active' = 'True' "
         if not_flagged:
-            clause += " info ? 'flag' = False "
+            clause += " and info ? 'flag' = False "
         if clause:
-            query_string += ' and %s' % (clause,)
+            query_string += '%s' % (clause,)
         sens_row = self.sensorweb.database_connection.query(query_string)
         sensors = []
         for sens in sens_row:
