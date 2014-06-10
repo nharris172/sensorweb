@@ -27,6 +27,71 @@ class DatabaseConnection:
         self.database.commit()
         
 
+class DataFunctions:
+    def __init__(self, sensorweb):
+        self.sensorweb = sensorweb
+        
+    def __check_reading(self,reading_name,units,reading_value):
+        query_string = "select default_units, hstore_to_matrix(unit_conversion)\
+         from readings where reading_name = '%s'" %(
+        reading_name,)
+        reading_info = self.sensorweb.database_connection.query(query_string)
+        if not reading_info:
+            
+            return (False,None,)
+        reading_info = reading_info[0]
+        default_units = reading_info[0]
+        units_conversion = {}
+        if reading_info[1]:
+            units_conversion = dict(reading_info[1])
+        if units == default_units:
+            return (True,reading_value)
+        if units not in units_conversion.keys():
+            return (False,None,)
+        return (True,float(units_conversion[units])* float(reading_value),)
+        
+    def get_themes(self,):
+        query_string  = "select distinct(theme) from readings"
+        themes = self.sensorweb.database_connection.query(query_string)
+        return [ item[0] for item in themes]
+    
+    def get_vars(self,tag=None,value=None):
+        query_string  = "select reading_name from readings"
+        if tag and value:
+            query_string += " where %s = '%s'" % (tag,value)
+        themes = self.sensorweb.database_connection.query(query_string)
+        return [ item[0] for item in themes]
+    
+    def get_averages(self,variable_name,start_time,end_time,timedelta):
+        averages =[]
+        temp_time = start_time
+        all_null = True
+        while temp_time + timedelta<= end_time:
+            stime,etime = temp_time,temp_time+timedelta
+            query_string = "select hstore_to_matrix(info) from sensor_data where \
+            info->'reading' = '%s' \
+            and proper_timestamp(info->'timestamp') > '%s'\
+            and proper_timestamp(info->'timestamp') < '%s' \
+            and not info?'flag' " % (variable_name,stime,etime)
+            
+            value_results = self.sensorweb.database_connection.query(query_string)
+            average_values =[]
+            for row in value_results:
+                info = dict(row[0])
+                reading_ok,value = self.__check_reading(info['reading'],
+                                            info['units'],info['value'])
+                if reading_ok:
+                    average_values.append(float(value))
+            average = None
+            if average_values:
+                all_null = False
+                average= sum(average_values)/len(average_values)
+            averages.append(average)
+            
+            temp_time +=timedelta
+        if all_null:
+            return None
+        return averages
 
 class SensorFunctions:
     """handles all sensor functions"""
@@ -116,12 +181,24 @@ class SensorFunctions:
                     _extra)
                     
         sensor.link()
+        if new_type:
+            query_string = "update new_tags set info = case  when info is not null \
+             then info||hstore('type','%s') else hstore('type','%s') end  \
+             where table_name = 'sensors'" % (_type,_type)
+            self.sensorweb.database_connection.insert(query_string)
+        if new_source:
+            query_string = "update new_tags set info = case  when info is not null \
+             then info||hstore('source','%s') else hstore('source','%s') end  \
+             where table_name = 'sensors'" % (_source,_source)
+            self.sensorweb.database_connection.insert(query_string)
         return sensor
         
     def create_or_update(self, _name, _geom, _type,
                     _source, _active, _auth_needed,_extra ={}):
         """Creates sensor entry or updates one with with the matching name"""
         sensor =  self.get('name', _name,active=False, not_flagged=False)
+        new_type ,_type = self.sensorweb._check_tag('sensors','type',_type)
+        new_source,_source = self.sensorweb._check_tag('sensors','source',_source)
         if not sensor:
             sensor = self.create(_name, _geom, _type, 
                                 _source, _active, _auth_needed)
@@ -131,6 +208,16 @@ class SensorFunctions:
                     'active':_active, 'auth_needed': _auth_needed}
         info_dict.update(_extra)
         sensor.update_info(info_dict)
+        if new_type:
+            query_string = "update new_tags set info = case  when info is not null \
+             then info||hstore('type','%s') else hstore('type','%s') end  \
+             where table_name = 'sensors'" % (_type,_type,)
+            self.sensorweb.database_connection.insert(query_string)
+        if new_source:
+            query_string = "update new_tags set info = case  when info is not null \
+             then info||hstore('source','%s') else hstore('source','%s') end  \
+             where table_name = 'sensors'" % (_source,_source,)
+            self.sensorweb.database_connection.insert(query_string)
         return sensor
     
     def get_tag_values(self,tag):
@@ -201,7 +288,8 @@ class SensorWeb:
                                                     user, password)
         self.sensors = SensorFunctions(self)
         self.geospatial = GeospatialFunctions(self)
-        self.maintenance = maintenance(self)
+        self.maintenance = maintenance.maintenance_class(self)
+        self.data = DataFunctions(self)
         if add_ons:
             for add_on in add_ons:
                 setattr(self, add_on.name, add_on(self))

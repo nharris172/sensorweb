@@ -53,7 +53,11 @@ class Sensor:
         query_string = "select default_units, hstore_to_matrix(unit_conversion)\
          from readings where reading_name = '%s'" %(
         reading_name,)
-        reading_info = self.database.query(query_string)[0]
+        reading_info = self.database.query(query_string)
+        if not reading_info:
+            
+            return (False,None,)
+        reading_info = reading_info[0]
         default_units = reading_info[0]
         units_conversion = {}
         if reading_info[1]:
@@ -62,7 +66,25 @@ class Sensor:
             return (True,reading_value)
         if units not in units_conversion.keys():
             return (False,None,)
-        return (True,float(nits_conversion[units])* float(reading_value),)
+        return (True,float(units_conversion[units])* float(reading_value),)
+    
+    def __check_new_tags(self,reading_name,units):
+        query_string = "select default_units,akeys(unit_conversion)\
+         from readings where reading_name = '%s'" %(
+        reading_name,)
+        reading_info = self.database.query(query_string)
+        new_reading = reading_info == []
+        new_units = True
+        if not new_reading:
+            existing_units = [str(reading_info[0][0])]
+            if reading_info[0][1]:
+                existing_units += [str(item) for item in list(reading_info[0][1])]
+            new_units = units not in existing_units
+        if new_units:
+            query_string = "insert into new_reading \
+             (reading_name,units, new_reading) values ('%s','%s',%s)" %\
+            ( reading_name,units,new_reading)
+            self.database.insert(query_string)
     
     def __default_units(self,reading_name):
         query_string = "select default_units from readings \
@@ -98,7 +120,7 @@ class Sensor:
                             % (','.join(hstore), self.name)
         self.database.insert(insert_string)
         
-    def add_data(self, timestamp, reading, units, value, extra):
+    def add_data(self, timestamp, reading, units, value, theme, extra):
         """adds sensor data reading to database"""
         hstore = []
         hstore.append('"sensor_id"=>"%s"' %(self.sensor_id,))
@@ -112,7 +134,8 @@ class Sensor:
         insert_string = "insert into sensor_data (info) values ('%s')"\
                                                         % (','.join(hstore),)
         self.database.insert(insert_string)
-        
+        self.__check_new_tags(reading,units)
+
         
     def get_readings(self,):
         query_string = "select distinct(info->'reading') from sensor_data where sensor_int_id_caster(info -> 'sensor_id'::text) = %s" % (self.sensor_id,)
@@ -169,7 +192,7 @@ class Sensor:
         for name,info in readings_dict.iteritems():
             if 'extra' not in info.keys():
                 info['extra'] ={}
-            self.add_data(info['timestamp'],name,info['units'],info['value'],info['extra'])
+            self.add_data(info['timestamp'],name,info['units'],info['value'],info['theme'],info['extra'])
     
     def json(self,):
         """return json of sensor object"""
