@@ -14,7 +14,6 @@ class maintenance_class:
         raw_data_readings = self.sensorweb.database_connection.query(query_string)
         i = 0
         for row in raw_data_readings:
-            print i,len(raw_data_readings)
             i+=1
             row_number = row[0]
             info = dict(row[1])
@@ -25,7 +24,6 @@ class maintenance_class:
             flag_value = False
             if 'min_val' in reading_flag_checker[info['reading']].keys():
                 if float(info['value']) < float(reading_flag_checker[info['reading']]['min_val']):
-                    print info['reading'],float(info['value']),float(reading_flag_checker[info['reading']]['min_val'])
                     flag_value = True
             if 'max_val' in reading_flag_checker[info['reading']].keys():
                 if float(info['value']) > float(reading_flag_checker[info['reading']]['max_val']):

@@ -50,12 +50,15 @@ class Sensor:
         
         
     def __check_reading(self,reading_name,units,reading_value):
+        try:
+            float(reading_value)
+        except:
+            return (False,None,)
         query_string = "select default_units, hstore_to_matrix(unit_conversion)\
          from readings where reading_name = '%s'" %(
         reading_name,)
         reading_info = self.database.query(query_string)
         if not reading_info:
-            
             return (False,None,)
         reading_info = reading_info[0]
         default_units = reading_info[0]
@@ -63,7 +66,7 @@ class Sensor:
         if reading_info[1]:
             units_conversion = dict(reading_info[1])
         if units == default_units:
-            return (True,reading_value)
+            return (True,float(reading_value))
         if units not in units_conversion.keys():
             return (False,None,)
         return (True,float(units_conversion[units])* float(reading_value),)

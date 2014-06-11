@@ -25,7 +25,6 @@ class maintenance_class:
             flag_value = False
             if 'min_val' in reading_flag_checker[info['reading']].keys():
                 if float(info['value']) < float(reading_flag_checker[info['reading']]['min_val']):
-                    print info['reading'],float(info['value']),float(reading_flag_checker[info['reading']]['min_val'])
                     flag_value = True
             if 'max_val' in reading_flag_checker[info['reading']].keys():
                 if float(info['value']) > float(reading_flag_checker[info['reading']]['max_val']):
@@ -34,5 +33,5 @@ class maintenance_class:
             if flag_value:
                 info_string+="||hstore('flag','True')"
             query_string = "update sensor_data set info = %s where sensor__data_id = %s " % ( info_string,row_number,)
-            #self.sensorweb.database_connection.insert(query_string)
+            self.sensorweb.database_connection.insert(query_string)
         

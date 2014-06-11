@@ -32,6 +32,10 @@ class DataFunctions:
         self.sensorweb = sensorweb
         
     def __check_reading(self,reading_name,units,reading_value):
+        try:
+            float(reading_value)
+        except:
+            return (False,None,)
         query_string = "select default_units, hstore_to_matrix(unit_conversion)\
          from readings where reading_name = '%s'" %(
         reading_name,)
@@ -45,7 +49,7 @@ class DataFunctions:
         if reading_info[1]:
             units_conversion = dict(reading_info[1])
         if units == default_units:
-            return (True,reading_value)
+            return (True,float(reading_value))
         if units not in units_conversion.keys():
             return (False,None,)
         return (True,float(units_conversion[units])* float(reading_value),)
@@ -80,13 +84,14 @@ class DataFunctions:
                 info = dict(row[0])
                 reading_ok,value = self.__check_reading(info['reading'],
                                             info['units'],info['value'])
+                
                 if reading_ok:
                     average_values.append(float(value))
             average = None
             if average_values:
                 all_null = False
                 average= sum(average_values)/len(average_values)
-            averages.append(average)
+            averages.append((tools.timestamp_to_timedelta(etime),average))
             
             temp_time +=timedelta
         if all_null:
@@ -258,6 +263,34 @@ class GeospatialFunctions:
         clause = "info -> 'special_tag' = 'GEO' \
                 and proper_timestamp(info->'timestamp') > '%s' \
                 and proper_timestamp(info->'timestamp') < '%s'" % (starttime, endtime,)
+                
+        if clause:
+            query_string += ' where %s' % (clause,)
+        sens_row = self.sensorweb.database_connection.query(query_string)
+        geo = []
+        for sens in sens_row:
+            info = dict(sens[0])
+            geo.append(
+                cl.Geospatial(
+                    self.sensorweb.database_connection,
+                    str(info['id']), 
+                    str(info['geom']),
+                    str(info['source']),
+                    str(info['theme']),
+                    str(info['timestamp']),
+                    str(info['reading']),
+                    str(info['units']),
+                    str(info['value']),
+                    info)
+                    )
+        return geo
+    
+    def get(self, starttime, endtime, key, value ):
+        """Retrives all geospatial entries between 2 times"""
+        query_string = "select hstore_to_matrix(info) as info from sensor_data"
+        clause = "info -> 'special_tag' = 'GEO' \
+                and proper_timestamp(info->'timestamp') > '%s' \
+                and proper_timestamp(info->'timestamp') < '%s' and info->'%s'='%s'" % (starttime, endtime,key,value)
                 
         if clause:
             query_string += ' where %s' % (clause,)
