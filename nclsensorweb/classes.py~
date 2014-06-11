@@ -51,7 +51,7 @@ class Sensor:
         
     def __check_reading(self,reading_name,units,reading_value):
         try:
-            float(value)
+            float(reading_value)
         except:
             return (False,None,)
         query_string = "select default_units, hstore_to_matrix(unit_conversion)\
@@ -182,7 +182,7 @@ class Sensor:
                                                         info['units'],info['value'])
                 if reading_ok:
                     _var_info[info['reading']]['data'].append([
-                        datetime.datetime.strptime(info['timestamp'],
+                        datetime.datetime.strptime(info['timestamp'].split('.')[0],
                                                     DATETIME_STRFORMAT),
                         float(value)
                         ])

@@ -182,7 +182,7 @@ class Sensor:
                                                         info['units'],info['value'])
                 if reading_ok:
                     _var_info[info['reading']]['data'].append([
-                        datetime.datetime.strptime(info['timestamp'],
+                        datetime.datetime.strptime(info['timestamp'].split('.')[0],
                                                     DATETIME_STRFORMAT),
                         float(value)
                         ])
