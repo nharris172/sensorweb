@@ -57,6 +57,11 @@ class SensorDataGroup:
         var_summary = {}
         for var,var_info in self.__var_info.iteritems():
             var_summary[var] = var_info
+            count = 0
+            for sensor_data in self.sensor_data:
+                if sensor_data.table(var):
+                    count+=1
+            var_summary[var]['num'] = count
             var_summary[var]['units'] = self.__var_lookup[var].units
                 
     def latest(self,):
