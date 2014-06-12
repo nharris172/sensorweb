@@ -50,7 +50,7 @@ class AverageDataFunctions:
             average_values =[]
             for row in value_results:
                 info = dict(row[0])
-                reading_ok,value = checker.check(self.sensorweb.database_connection,info['reading'],
+                reading_ok,value = checker.check(info['reading'],
                                             info['units'],info['value'])
                 
                 if reading_ok:
