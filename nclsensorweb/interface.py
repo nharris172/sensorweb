@@ -3,10 +3,12 @@
 import nclsensorweb.classes as cl
 import nclsensorweb.maintenance as maintenance
 import nclsensorweb.tools as tools
+import nclsensorweb.db_tools as db_tools
 import nclsensorweb.errors as error
+import datetime
 import psycopg2
 from pygeocoder import Geocoder
-
+import time
 class DatabaseConnection:
     """handles all database connections"""
     def __init__(self, host, db_name, user, password):
@@ -18,6 +20,7 @@ class DatabaseConnection:
     def query(self, query_string):
         """queries the database and returns results"""
         self.cur.execute(query_string)
+        
         results = self.cur.fetchall()
         return results
     
@@ -26,50 +29,15 @@ class DatabaseConnection:
         self.cur.execute(insert_string)
         self.database.commit()
         
-
-class DataFunctions:
+class AverageDataFunctions:
     def __init__(self, sensorweb):
         self.sensorweb = sensorweb
-        
-    def __check_reading(self,reading_name,units,reading_value):
-        try:
-            float(reading_value)
-        except:
-            return (False,None,)
-        query_string = "select default_units, hstore_to_matrix(unit_conversion)\
-         from readings where reading_name = '%s'" %(
-        reading_name,)
-        reading_info = self.sensorweb.database_connection.query(query_string)
-        if not reading_info:
-            
-            return (False,None,)
-        reading_info = reading_info[0]
-        default_units = reading_info[0]
-        units_conversion = {}
-        if reading_info[1]:
-            units_conversion = dict(reading_info[1])
-        if units == default_units:
-            return (True,float(reading_value))
-        if units not in units_conversion.keys():
-            return (False,None,)
-        return (True,float(units_conversion[units])* float(reading_value),)
-        
-    def get_themes(self,):
-        query_string  = "select distinct(theme) from readings"
-        themes = self.sensorweb.database_connection.query(query_string)
-        return [ item[0] for item in themes]
-    
-    def get_vars(self,tag=None,value=None):
-        query_string  = "select reading_name from readings"
-        if tag and value:
-            query_string += " where %s = '%s'" % (tag,value)
-        themes = self.sensorweb.database_connection.query(query_string)
-        return [ item[0] for item in themes]
-    
-    def get_averages(self,variable_name,start_time,end_time,timedelta):
+
+    def get(self,variable_name,start_time,end_time,timedelta):
         averages =[]
         temp_time = start_time
         all_null = True
+        checker = db_tools.ReadingChecker(self.sensorweb.database_connection)
         while temp_time + timedelta<= end_time:
             stime,etime = temp_time,temp_time+timedelta
             query_string = "select hstore_to_matrix(info) from sensor_data where \
@@ -82,7 +50,7 @@ class DataFunctions:
             average_values =[]
             for row in value_results:
                 info = dict(row[0])
-                reading_ok,value = self.__check_reading(info['reading'],
+                reading_ok,value = checker.check(info['reading'],
                                             info['units'],info['value'])
                 
                 if reading_ok:
@@ -97,6 +65,30 @@ class DataFunctions:
         if all_null:
             return None
         return averages
+    
+
+        
+
+
+class DataFunctions:
+    def __init__(self, sensorweb):
+        self.sensorweb = sensorweb
+        self.average = AverageDataFunctions(self.sensorweb)
+        
+    def themes(self,):
+        query_string  = "select distinct(theme) from readings"
+        themes = self.sensorweb.database_connection.query(query_string)
+        return [ item[0] for item in themes]
+    
+    def variables(self,tag=None,value=None):
+        query_string  = "select reading_name from readings"
+        if tag and value:
+            query_string += " where %s = '%s'" % (tag,value)
+        themes = self.sensorweb.database_connection.query(query_string)
+        return [ item[0] for item in themes]
+        
+    
+    
 
 class SensorFunctions:
     """handles all sensor functions"""
@@ -124,41 +116,29 @@ class SensorFunctions:
                     )
 
         
-    def get_all(self, logged_in=False, active=True, not_flagged=True):
-        """Retrieves relevant metadata for each 
-        sensor stored in metadata database"""
-        query_string = "select hstore_to_matrix(info) as info from sensors"
-        clause = " info ? 'name'"
-        if not logged_in:
-            clause += " and info->'auth_needed' = 'False'"
-        if active:
-            clause += " and info->'active' = 'True' "
-        if not_flagged:
-            clause += " and info ? 'flag' = False "
-        if clause:
-            query_string += ' where %s' % (clause,)
-        sens_row = self.sensorweb.database_connection.query(query_string)
-        sensors = []
-        for sens in sens_row:
-            info = dict(sens[0])
-            sensor = self.__dict_to_sensor(info)
-            sensors.append(sensor)
-        if sensors:
-            return cl.SensorGroup(self.sensorweb.database_connection, sensors)
+
 
         
         
-    def get(self, key, value,active=True, not_flagged=True):
+    def get(self, key=False, value=False,last_record = False,active=True, not_flagged=True,logged_in=False):
         """retrives sensors matching the key value"""
-        query_string = "select hstore_to_matrix(info) as info from sensors \
-         where "
-        clause = " info->'%s' = '%s'" % (key, value)
+        query_string = "select hstore_to_matrix(info) as info from sensors "
+        clauses = []
+        if key and value:
+            clauses.append("info->'%s' = '%s'" % (key, value))
         if active:
-            clause += " and info->'active' = 'True' "
+            clauses.append("info->'active' = 'True' ")
         if not_flagged:
-            clause += " and info ? 'flag' = False "
-        if clause:
-            query_string += '%s' % (clause,)
+            clauses.append("info ? 'flag' = False ")
+        if not logged_in:
+            clauses.append("info->'auth_needed' = 'False'")
+        if last_record:
+            clauses.append("sensor_int_id_caster(info -> 'sensor_int_id'::text)  in \
+            (select distinct sensor_int_id_caster(info -> 'sensor_id'::text)\
+             from sensor_data where proper_timestamp(info->'timestamp') > '%s'\
+             and info?'special_tag' = False)" %(last_record,))
+        if clauses:
+            query_string += ' where %s' % (' and '.join(clauses),)
         sens_row = self.sensorweb.database_connection.query(query_string)
         sensors = []
         for sens in sens_row:
@@ -166,12 +146,12 @@ class SensorFunctions:
             sensor = self.__dict_to_sensor(info)
             sensors.append(sensor)
         if sensors:
-            return cl.SensorGroup(self.sensorweb.database_connection, sensors)
+            return cl.SensorGroup(self.sensorweb,sensors)
 
     def create(self, _name, _geom, _type, _source, _active, _auth_needed,_extra={}):
         """creates a sensor entry"""
-        new_type ,_type = self.sensorweb._check_tag('sensors','type',_type)
-        new_source,_source = self.sensorweb._check_tag('sensors','source',_source)
+        new_type ,_type = db_tools.check_tag(self.sensorweb.database_connection,'sensors','type',_type)
+        new_source,_source = db_tools.check_tag(self.sensorweb.database_connection,'sensors','source',_source)
         query_string = "select max(sensor_int_id_caster(info -> 'sensor_int_id'::text) ) from sensors"
         sens_id = self.sensorweb.database_connection.query(query_string)
         id = sens_id[0][0] +1
@@ -198,12 +178,12 @@ class SensorFunctions:
             self.sensorweb.database_connection.insert(query_string)
         return sensor
         
-    def create_or_update(self, _name, _geom, _type,
+    def get_or_create(self, _name, _geom, _type,
                     _source, _active, _auth_needed,_extra ={}):
         """Creates sensor entry or updates one with with the matching name"""
         sensor =  self.get('name', _name,active=False, not_flagged=False)
-        new_type ,_type = self.sensorweb._check_tag('sensors','type',_type)
-        new_source,_source = self.sensorweb._check_tag('sensors','source',_source)
+        new_type ,_type = db_tools.check_tag(self.sensorweb.database_connection,'sensors','type',_type)
+        new_source,_source = db_tools.check_tag(self.sensorweb.database_connection,'sensors','source',_source)
         if not sensor:
             sensor = self.create(_name, _geom, _type, 
                                 _source, _active, _auth_needed)
@@ -224,13 +204,12 @@ class SensorFunctions:
              where table_name = 'sensors'" % (_source,_source,)
             self.sensorweb.database_connection.insert(query_string)
         return sensor
-    
-    def get_tag_values(self,tag):
-        """retrieves all the entries with the tag"""
-        query_string = "select array_agg(distinct(info->'%s')) from sensors" %(tag,)
-        response = self.sensorweb.database_connection.query(query_string)
-        if response:
-            return [str(item) for item in response[0][0]]
+        
+    def sources(self,):
+        return db_tools.get_tag_values(self.sensorweb.database_connection,'sensors','source')
+        
+    def types(self,):
+        return db_tools.get_tag_values(self.sensorweb.database_connection,'sensors','type')
         
 class GeospatialFunctions:
     """create Goesatial function class"""
@@ -312,7 +291,30 @@ class GeospatialFunctions:
                     info)
                     )
         return geo
+    
+    
+class GeometryFunctions:
+    def __init__(self,sensorweb):
+        self.sensorweb = sensorweb
         
+    def latlon(self,lat,lon):
+        """creates postgis binary geometry from lat and lon"""
+        query_string = "select ST_SetSRID(ST_MakePoint(%s,%s),4326)" \
+                        % (lon, lat,)
+        geom = self.sensorweb.database_connection.query(query_string)
+        return geom[0][0]
+    
+    def placename(self,placename):
+        geom_results = Geocoder.geocode(placename)
+        lat,lon = geom_results[0].coordinates
+        geom_binary = self.make_geom(lat,lon)
+        return geom_binary
+    
+    def wkt(self,wkt):
+        query_string = "select ST_GeomFromText('%s',4326)" % (wkt,)
+        geom = self.database_connection.query(query_string)
+        return geom[0][0]
+
     
 class SensorWeb:
     """SensorWeb class handles all interactions with the database"""
@@ -326,38 +328,4 @@ class SensorWeb:
         if add_ons:
             for add_on in add_ons:
                 setattr(self, add_on.name, add_on(self))
-                
-    def _check_tag(self,table_name,tag_name,tag_value):
-        query_string = "select info->'%s' from tags where table_name = '%s'" \
-                        % (tag_name,table_name)
-        existing_tags = self.database_connection.query(query_string)[0][0].strip('{}')
-        existing_tags = existing_tags.replace('"','')
-        existing_tags = existing_tags.split(',')
-        tag_scores = {}
-        for ex_tag in existing_tags:
-            tag_scores[tools.levenshtein(ex_tag,tag_value)] = ex_tag
-        min_score = min(tag_scores.keys())
-        if min_score < 4:
 
-            return False,tag_scores[min_score]
-        
-        return True,' '.join([part.capitalize() for part in tag_value.split(' ')])
-
-    def make_geom(self, lat, lon):
-        """creates postgis binary geometry from lat and lon"""
-        query_string = "select ST_SetSRID(ST_MakePoint(%s,%s),4326)" \
-                        % (lon, lat,)
-        geom = self.database_connection.query(query_string)
-        return geom[0][0]
-    
-    def geocode_placename(self,name):
-        geom_results = Geocoder.geocode(name)
-        lat,lon = geom_results[0].coordinates
-        geom_binary = self.make_geom(lat,lon)
-        return geom_binary
-    
-    def wkt_to_geom(self, wkt):
-        """converts WKT to postgis binary geometry"""
-        query_string = "select ST_GeomFromText('%s',4326)" % (wkt,)
-        geom = self.database_connection.query(query_string)
-        return geom[0][0]
