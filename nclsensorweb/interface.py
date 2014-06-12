@@ -307,7 +307,7 @@ class GeometryFunctions:
     def placename(self,placename):
         geom_results = Geocoder.geocode(placename)
         lat,lon = geom_results[0].coordinates
-        geom_binary = self.make_geom(lat,lon)
+        geom_binary = self.latlon(lat,lon)
         return geom_binary
     
     def wkt(self,wkt):
