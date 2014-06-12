@@ -1,6 +1,6 @@
 class ReadingChecker:
     def __init__(self,db_connection):
-        self.__db_conn
+        self.__db_conn = db_connection
         query_string = "select reading_name,default_units, \
         hstore_to_matrix(unit_conversion) from readings"
         self.__units_converter = {}

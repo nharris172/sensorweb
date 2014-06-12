@@ -1,3 +1,5 @@
+import nclsensorweb.db_tools as db_tools
+
 class ReadingChecker:
     def __init__(self,db_connection):
         self.__db_conn = db_connection
