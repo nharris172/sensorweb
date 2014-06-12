@@ -323,6 +323,7 @@ class SensorWeb:
                                                     user, password)
         self.sensors = SensorFunctions(self)
         self.geospatial = GeospatialFunctions(self)
+        self.geometry = GeometryFunctions(self)
         self.maintenance = maintenance.maintenance_class(self)
         self.data = DataFunctions(self)
         if add_ons:

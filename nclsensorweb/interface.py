@@ -192,7 +192,7 @@ class SensorFunctions:
         info_dict = {'geom':_geom, 'type':_type, 'source': _source,
                     'active':_active, 'auth_needed': _auth_needed}
         info_dict.update(_extra)
-        sensor.update_info(info_dict)
+        sensor.update(info_dict)
         if new_type:
             query_string = "update new_tags set info = case  when info is not null \
              then info||hstore('type','%s') else hstore('type','%s') end  \
