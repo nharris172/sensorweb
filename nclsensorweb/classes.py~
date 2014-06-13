@@ -288,7 +288,7 @@ class Sensor:
             hstore.append('"%s"=>"%s"' %(key,value))
         insert_string = "insert into sensors ( info)  values ('%s')" \
                                                         % (','.join(hstore),)
-        self.database_connection.insert(insert_string)
+        self.__database.insert(insert_string)
         
     def update(self, infodict):
         """updates sensor information"""
@@ -301,7 +301,7 @@ class Sensor:
         insert_string = " update sensors set info = info||'%s'::hstore \
                             where info ->'name' = '%s' " \
                             % (','.join(hstore), self.name)
-        self.database_connection.insert(insert_string)
+        self.__database.insert(insert_string)
     
     def json(self,):
         """return json of sensor object"""

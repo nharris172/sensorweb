@@ -157,13 +157,13 @@ class SensorGroup:
         for sensor in self.sensors:
             if sensor.type not in sensor_types:
                 sensor_types.append(sensor.type)
-                
+        return sensor_types
     def sources(self,):
         sensor_sources= []
         for sensor in self.sensors:
             if sensor.source not in sensor_sources:
                 sensor_sources.append(sensor.source)
-    
+        return sensor_sources
 
 class SensorDataFunctions:
     def __init__(self,sensorid,db_connection):
