@@ -18,6 +18,7 @@ class SensorData:
             return None
         return  self.__table_lookup[var_name]
         
+       
 class SensorDataGroup:
     def __init__(self,sensor_data_list,variable_data,vars):
         self.sensor_data = sensor_data_list
@@ -49,7 +50,7 @@ class SensorDataGroup:
             table = sensordata.table(var_name)
             if table:
                 heatmap_obj['data'].append({'count':table.live(),'geom':sensordata.sensor.geom})
-                
+        return heatmap_obj
     def variable_steps(self,):
         return self._var_steps
 
@@ -72,10 +73,27 @@ class SensorDataGroup:
         all_latest.sort()
         return all_latest[-1]
         
+class AverageSensorDataFunctions:
+    def __init__(self,sensordatagroup):
+        self.sensordatagroup = sensordatagroup
+        
+    def get(self,starttime,endtime,timedelta):
+        sensors_id = [ ]
+        sensor_id_lookup = {}
+        for sensor in self.sensorgroup.sensors:
+            sensors_id.append(sensor.sensor_id)
+            sensor_id_lookup[sensor.sensor_id] = sensor
+        query_string = "select hstore_to_matrix(info) from sensor_data where \
+                       proper_timestamp(info->'timestamp') \
+                        > '%s' and proper_timestamp(info->'timestamp') < '%s' \
+                         and sensor_int_id_caster(info -> 'sensor_id'::text) in (%s)\
+                         and not info?'flag' order by proper_timestamp(info->'timestamp')" \
+                        % (starttime, endtime, ','.join(sensors_id),)
+        print query_string
 class SensorGroupDataFunctions:
     def __init__(self,sensorgroup):
         self.sensorgroup = sensorgroup
-        
+        self.average = AverageSensorDataFunctions(self)
     def latest(self,):
         lastest_times =[]
         for sensor in self.sensorgroup.sensors:

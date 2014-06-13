@@ -29,64 +29,7 @@ class DatabaseConnection:
         self.cur.execute(insert_string)
         self.database.commit()
         
-class AverageDataFunctions:
-    def __init__(self, sensorweb):
-        self.sensorweb = sensorweb
-
-    def get(self,variable_name,start_time,end_time,timedelta):
-        averages =[]
-        temp_time = start_time
-        all_null = True
-        checker = db_tools.ReadingChecker(self.sensorweb.database_connection)
-        while temp_time + timedelta<= end_time:
-            stime,etime = temp_time,temp_time+timedelta
-            query_string = "select hstore_to_matrix(info) from sensor_data where \
-            info->'reading' = '%s' \
-            and proper_timestamp(info->'timestamp') > '%s'\
-            and proper_timestamp(info->'timestamp') <= '%s' \
-            and not info?'flag' " % (variable_name,stime,etime)
-            
-            value_results = self.sensorweb.database_connection.query(query_string)
-            average_values =[]
-            for row in value_results:
-                info = dict(row[0])
-                reading_ok,value = checker.check(info['reading'],
-                                            info['units'],info['value'])
-                
-                if reading_ok:
-                    average_values.append(float(value))
-            average = None
-            if average_values:
-                all_null = False
-                average= sum(average_values)/len(average_values)
-            averages.append((tools.timestamp_to_timedelta(etime),average))
-            
-            temp_time +=timedelta
-        if all_null:
-            return None
-        return averages
-    
-
-        
-
-
-class DataFunctions:
-    def __init__(self, sensorweb):
-        self.sensorweb = sensorweb
-        self.average = AverageDataFunctions(self.sensorweb)
-        
-    def themes(self,):
-        query_string  = "select distinct(theme) from readings"
-        themes = self.sensorweb.database_connection.query(query_string)
-        return [ item[0] for item in themes]
-    
-    def variables(self,tag=None,value=None):
-        query_string  = "select reading_name from readings"
-        if tag and value:
-            query_string += " where %s = '%s'" % (tag,value)
-        themes = self.sensorweb.database_connection.query(query_string)
-        return [ item[0] for item in themes]
-        
+       
     
     
 
@@ -181,7 +124,7 @@ class SensorFunctions:
     def get_or_create(self, _name, _geom, _type,
                     _source, _active, _auth_needed,_extra ={}):
         """Creates sensor entry or updates one with with the matching name"""
-        sensor =  self.get('name', _name,active=False, not_flagged=False)
+        sensor =  self.get(key='name', value=_name,active=False, not_flagged=False,logged_in=True)
         new_type ,_type = db_tools.check_tag(self.sensorweb.database_connection,'sensors','type',_type)
         new_source,_source = db_tools.check_tag(self.sensorweb.database_connection,'sensors','source',_source)
         if not sensor:
@@ -325,7 +268,6 @@ class SensorWeb:
         self.geospatial = GeospatialFunctions(self)
         self.geometry = GeometryFunctions(self)
         self.maintenance = maintenance.maintenance_class(self)
-        self.data = DataFunctions(self)
         if add_ons:
             for add_on in add_ons:
                 setattr(self, add_on.name, add_on(self))
