@@ -49,7 +49,7 @@ class SensorDataGroup:
             table = sensordata.table(var_name)
             if table:
                 heatmap_obj['data'].append({'count':table.live(),'geom':sensordata.sensor.geom})
-                
+        return heatmap_obj
     def variable_steps(self,):
         return self._var_steps
 
