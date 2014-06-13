@@ -83,13 +83,49 @@ class AverageSensorDataFunctions:
         for sensor in self.sensordatafunctions.sensorgroup.sensors:
             sensors_id.append(sensor.sensor_id)
             sensor_id_lookup[sensor.sensor_id] = sensor
-        query_string = "select hstore_to_matrix(info) from sensor_data where \
-                       proper_timestamp(info->'timestamp') \
-                        > '%s' and proper_timestamp(info->'timestamp') < '%s' \
-                         and sensor_int_id_caster(info -> 'sensor_id'::text) in (%s)\
-                         and not info?'flag' order by proper_timestamp(info->'timestamp')" \
-                        % (starttime, endtime, ','.join(sensors_id),)
-        print query_string
+
+        checker = db_tools.ReadingChecker(self.sensordatafunctions.sensorgroup.sensorweb.database_connection)
+        query_string  = "select array_agg(array_to_string(hstore_to_matrix(info),'|')),\
+         date_round(proper_timestamp(info->'timestamp'), '%s')\
+        from sensor_data\
+         where proper_timestamp(info->'timestamp')   > '%s' \
+         and proper_timestamp(info->'timestamp') < '%s' \
+         and sensor_int_id_caster(info -> 'sensor_id'::text) in \
+         (%s) \
+          and not info?'flag'group by \
+        date_round(proper_timestamp(info->'timestamp'), '%s')\
+           order by  date_round(proper_timestamp(info->'timestamp'), '%s')" %(
+        str(timedelta),starttime,endtime,','.join(sensors_id),str(timedelta),str(timedelta)
+        )
+        variables ={}
+        var_data = {}
+        for row in self.sensordatafunctions.sensorgroup.sensorweb.database_connection.query(query_string):
+            timestamp = row[1]
+            var_data_for_time = {}
+            for data in row[0]:
+                elements = data.split('|')
+                info = dict(zip(elements[0::2], elements[1::2]))
+                units = checker.default_units[info['reading']]
+                variable = Variable(info['reading'], units, info['theme'])
+                variables[info['reading']] = Variable(info['reading'], units, info['theme'])
+                if info['value']:
+                    reading_ok,value = checker.check(
+                    info['reading'],
+                    info['units'],
+                    info['value']
+                            )
+                    if reading_ok:
+                        var_data_for_time[info['reading']] = var_data_for_time.get(info['reading'],[])
+                        var_data_for_time[info['reading']].append(value)
+            for key,value in var_data_for_time.iteritems():
+                var_data[key] = var_data.get(key,[])
+                mean_val = sum(value)/float(len(value))
+                var_data[key].append([timestamp,mean_val])
+        data_tables = []
+        for var_name,values in var_data.iteritems():
+            data_tables.append(Data(variables[var_name], values))
+        return data_tables
+                
 class SensorGroupDataFunctions:
     def __init__(self,sensorgroup):
         self.sensorgroup = sensorgroup
@@ -333,6 +369,8 @@ class Data:
     def __init__(self, _var, _data):
         self.var = _var
         self.data = _data
+        self.values = [item[1] for item in self.data]
+        self.timesteps = [item[0] for item in self.data]
         
     def latest_time(self,):
         """return latest reading time"""
@@ -356,6 +394,8 @@ class Variable:
         self.name = _name
         self.units = _units
         self.theme = _theme
+    def json(self,):
+        return {'name':self.name,'units':self.units,'theme':self.theme}
         
 class Geospatial:
     """Geostaptial data entry"""
