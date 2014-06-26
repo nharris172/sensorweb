@@ -97,10 +97,10 @@ class AverageSensorDataFunctions:
          and proper_timestamp(info->'timestamp') <= '%s' \
          and sensor_int_id_caster(info -> 'sensor_id'::text) in \
          (%s) \
-          and not info?'flag'group by \
-        date_round(proper_timestamp(info->'timestamp'), '%s')\
-           order by  date_round(proper_timestamp(info->'timestamp'), '%s')" %(
-        str(timedelta),starttime,endtime,','.join(sensors_id),str(timedelta),str(timedelta)
+          and not info?'flag' group by \
+        date_round(proper_timestamp(info->'timestamp') + interval '%s', '%s')\
+           order by  date_round(proper_timestamp(info->'timestamp')+ interval '%s', '%s')" %(
+        str(timedelta),str(timedelta),starttime,endtime,','.join(sensors_id),str(timedelta),str(timedelta),str(timedelta),str(timedelta)
         )
         variables ={}
         var_data = {}
