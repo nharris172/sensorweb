@@ -29,7 +29,12 @@ class SensorDataGroup:
         for var in vars:
             self.__var_lookup[var.name] = var
         self.__var_info ={}
-        for var_name, values in variable_data.iteritems():
+        var_values ={}
+        for sensor_data in self.sensor_data:
+            for data_table in sensor_data.data_tables:
+                var_values[data_table.var.name] = var_values.get(data_table.var.name,[])
+                var_values[data_table.var.name].append(data_table.live())
+        for var_name, values in var_values.iteritems():
             values.sort()
             min_val,max_val = values[0], values[-1]
             self.__var_info[var_name] = {'min':min_val,'max':max_val,'avg':sum(values)/float(len(values))}
@@ -77,7 +82,7 @@ class AverageSensorDataFunctions:
     def __init__(self,sensordatafunctions):
         self.sensordatafunctions = sensordatafunctions
         
-    def get(self,starttime,endtime,timedelta):
+    def get(self,starttime,endtime,timedelta,remove_outlier=True):
         sensors_id = [ ]
         sensor_id_lookup = {}
         for sensor in self.sensordatafunctions.sensorgroup.sensors:
@@ -119,6 +124,8 @@ class AverageSensorDataFunctions:
                         var_data_for_time[info['reading']].append(value)
             for key,value in var_data_for_time.iteritems():
                 var_data[key] = var_data.get(key,[])
+                if remove_outlier == True:
+                    pass
                 mean_val = sum(value)/float(len(value))
                 var_data[key].append([timestamp,mean_val])
         data_tables = []
@@ -394,6 +401,8 @@ class Variable:
         self.name = _name
         self.units = _units
         self.theme = _theme
+    def json(self,):
+        return {'name':self.name,'units':self.units,'theme':self.theme}
         
 class Geospatial:
     """Geostaptial data entry"""
