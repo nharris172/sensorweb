@@ -91,16 +91,16 @@ class AverageSensorDataFunctions:
 
         checker = db_tools.ReadingChecker(self.sensordatafunctions.sensorgroup.sensorweb.database_connection)
         query_string  = "select array_agg(array_to_string(hstore_to_matrix(info),'|')),\
-         date_round(proper_timestamp(info->'timestamp'), '%s')\
+         date_round(proper_timestamp(info->'timestamp') + interval '%s' , '%s')\
         from sensor_data\
          where proper_timestamp(info->'timestamp')   > '%s' \
-         and proper_timestamp(info->'timestamp') < '%s' \
+         and proper_timestamp(info->'timestamp') <= '%s' \
          and sensor_int_id_caster(info -> 'sensor_id'::text) in \
          (%s) \
-          and not info?'flag'group by \
-        date_round(proper_timestamp(info->'timestamp'), '%s')\
-           order by  date_round(proper_timestamp(info->'timestamp'), '%s')" %(
-        str(timedelta),starttime,endtime,','.join(sensors_id),str(timedelta),str(timedelta)
+          and not info?'flag' group by \
+        date_round(proper_timestamp(info->'timestamp') + interval '%s', '%s')\
+           order by  date_round(proper_timestamp(info->'timestamp')+ interval '%s', '%s')" %(
+        str(timedelta),str(timedelta),starttime,endtime,','.join(sensors_id),str(timedelta),str(timedelta),str(timedelta),str(timedelta)
         )
         variables ={}
         var_data = {}
