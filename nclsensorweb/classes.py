@@ -406,16 +406,14 @@ class Variable:
         
 class Geospatial:
     """Geostaptial data entry"""
-    def __init__(self, database_connection, _name, _geom, _source, 
+    def __init__(self, database_connection, _name, _geom, _geojson, _source, 
                 _type, _timestamp, _reading, _units, _value, _extra):
         self.database = database_connection
         self.name = _name
         self.source = _source
         self.type = _type
         self._raw_geom = _geom
-        query_string = "select ST_AsGeoJSON('%s')" % (_geom, )
-        query_results = self.database.query(query_string)
-        self.geom = simplejson.loads(query_results[0][0])
+        self.geom = simplejson.loads(_geojson)
         self.timestamp = datetime.datetime.strptime(_timestamp.split('.')[0], 
                                                     DATETIME_STRFORMAT)
         self.reading = _reading

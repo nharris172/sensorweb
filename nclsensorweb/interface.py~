@@ -124,7 +124,7 @@ class SensorFunctions:
     def get_or_create(self, _name, _geom, _type,
                     _source, _active, _auth_needed,_extra ={}):
         """Creates sensor entry or updates one with with the matching name"""
-        sensor =  self.get(key='name', value=_name,active=False, not_flagged=False)
+        sensor =  self.get(key='name', value=_name,active=False, not_flagged=False,logged_in=True)
         new_type ,_type = db_tools.check_tag(self.sensorweb.database_connection,'sensors','type',_type)
         new_source,_source = db_tools.check_tag(self.sensorweb.database_connection,'sensors','source',_source)
         if not sensor:
@@ -179,15 +179,18 @@ class GeospatialFunctions:
                         % (','.join(hstore),)
         self.sensorweb.database_connection.insert(query_string)
         
-    def get_all(self, starttime, endtime):
+    def get_all(self, starttime, endtime,not_flagged=True,):
         """Retrives all geospatial entries between 2 times"""
-        query_string = "select hstore_to_matrix(info) as info from sensor_data"
+        query_string = "select hstore_to_matrix(info) as info, ST_AsGeoJSON(info->'geom') as geojson from sensor_data"
         clause = "info -> 'special_tag' = 'GEO' \
                 and proper_timestamp(info->'timestamp') > '%s' \
-                and proper_timestamp(info->'timestamp') < '%s'" % (starttime, endtime,)
+                and proper_timestamp(info->'timestamp') < '%s'" % (starttime, endtime,clause)
                 
+        if not_flagged:
+            clause+= " and  info ? 'flag' = False "
         if clause:
             query_string += ' where %s' % (clause,)
+
         sens_row = self.sensorweb.database_connection.query(query_string)
         geo = []
         for sens in sens_row:
@@ -197,6 +200,7 @@ class GeospatialFunctions:
                     self.sensorweb.database_connection,
                     str(info['id']), 
                     str(info['geom']),
+                    str(sens[1]),
                     str(info['source']),
                     str(info['theme']),
                     str(info['timestamp']),
@@ -207,13 +211,14 @@ class GeospatialFunctions:
                     )
         return geo
     
-    def get(self, starttime, endtime, key, value ):
+    def get(self, starttime, endtime, key, value,not_flagged=True ):
         """Retrives all geospatial entries between 2 times"""
-        query_string = "select hstore_to_matrix(info) as info from sensor_data"
+        query_string = "select hstore_to_matrix(info) as info, ST_AsGeoJSON(info->'geom') as geojson from sensor_data"
         clause = "info -> 'special_tag' = 'GEO' \
                 and proper_timestamp(info->'timestamp') > '%s' \
                 and proper_timestamp(info->'timestamp') < '%s' and info->'%s'='%s'" % (starttime, endtime,key,value)
-                
+        if not_flagged:
+            clause+= " and  info ? 'flag' = False "
         if clause:
             query_string += ' where %s' % (clause,)
         sens_row = self.sensorweb.database_connection.query(query_string)
@@ -225,6 +230,7 @@ class GeospatialFunctions:
                     self.sensorweb.database_connection,
                     str(info['id']), 
                     str(info['geom']),
+                    str(sens[1]),
                     str(info['source']),
                     str(info['theme']),
                     str(info['timestamp']),
@@ -271,4 +277,8 @@ class SensorWeb:
         if add_ons:
             for add_on in add_ons:
                 setattr(self, add_on.name, add_on(self))
+    def measure_distance(self,e1,n1,e2,n2):
+        q = "select st_distance(st_makepoint(%s,%s),st_makepoint(%s,%s))" % (e1,n1,e2,n2)
+        return self.database_connection.query(q)[0][0]
+        
 
