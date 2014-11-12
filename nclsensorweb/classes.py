@@ -6,6 +6,8 @@ import datetime
 
 DATETIME_STRFORMAT = '%Y-%m-%d %H:%M:%S'
 
+DEFAULT_CUTOFF = datetime.datetime.now() - datetime.timedelta(hours=24)
+
 class SensorData:
     def __init__(self,sensor,data_tables):
         self.sensor = sensor
@@ -137,16 +139,59 @@ class SensorGroupDataFunctions:
     def __init__(self,sensorgroup):
         self.sensorgroup = sensorgroup
         self.average = AverageSensorDataFunctions(self)
-    def latest(self,):
-        lastest_times =[]
+    def latest(self,variable,cutoff=DEFAULT_CUTOFF):
+        sensors_id = [ ]
+        sensor_id_lookup = {}
         for sensor in self.sensorgroup.sensors:
-            time = sensor.last_record()
-            if time:
-                lastest_times.append(time)
-        if lastest_times:
-            return max(lastest_times)
-        
-    def get(self, starttime, endtime):
+            sensors_id.append(sensor.sensor_id)
+            sensor_id_lookup[sensor.sensor_id] = sensor
+        query_string = "select hstore_to_matrix(info) from sensor_data where \
+                       proper_timestamp(info->'timestamp') \
+                        > '%s' and sensor_int_id_caster(info -> 'sensor_id'::text) in (%s)\
+                        and info->'reading' = '%s'\
+                         and not info?'flag' order by proper_timestamp(info->'timestamp')" \
+                        % (cutoff, ','.join(sensors_id),variable)
+        __sensor_data = {}
+        __variable_data = {}
+        variables = {}
+        checker = db_tools.ReadingChecker(self.sensorgroup.sensorweb.database_connection)
+        for row in self.sensorgroup.sensorweb.database_connection.query(query_string):
+            info = dict(row[0])
+            units = checker.default_units[info['reading']]
+            variable = Variable(info['reading'], units, info['theme'])
+            variables[info['reading']] = Variable(info['reading'], units, info['theme'])
+            __variable_data[info['reading']] = __variable_data.get(info['reading'],[])
+            
+            __sensor_data[info['sensor_id']] = __sensor_data.get(info['sensor_id'],{})
+            __sensor_data[info['sensor_id']][info['reading']] = __sensor_data[info['sensor_id']].get(info['reading'],{'variable':variable,'data':[]})
+
+            if info['value']:
+                reading_ok,value = checker.check(
+                    info['reading'],
+                    info['units'],
+                    info['value']
+                            )
+                if reading_ok:
+                    __sensor_data[info['sensor_id']][info['reading']]['data'].append([
+                        datetime.datetime.strptime(info['timestamp'].split('.')[0],
+                                                    DATETIME_STRFORMAT),
+                        float(value)
+                        ])
+                    __variable_data[info['reading']].append(float(value))
+        sensor_data =[]
+        for sensor_id, sensor_readings in __sensor_data.iteritems():
+            data_list = []
+            for data in sensor_readings.values():
+                if data['data']:
+                    data_list.append(Data(data['variable'], data['data']))
+            sensor_data.append(SensorData(
+                                sensor_id_lookup[sensor_id],
+                                data_list
+                                ))
+
+        return SensorDataGroup(sensor_data,__variable_data,variables.values())
+    
+    def get(self, starttime, endtime,variable=None):
         
         sensors_id = [ ]
         sensor_id_lookup = {}
@@ -368,6 +413,7 @@ class Sensor:
         """return json of sensor object"""
         return {'source':self.source, 'type':self.type, 'active':self.active, 
                 'geom':self.geom, 'name':self.name}
+                
         
 
         

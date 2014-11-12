@@ -241,7 +241,14 @@ class GeospatialFunctions:
                     )
         return geo
     
-    
+class VariableFunctions:
+    def __init__(self,sensorweb):
+        self.sensorweb = sensorweb
+
+    def get(self,):
+        query_string = "select array_agg(reading_name) from readings" 
+        variables = self.sensorweb.database_connection.query(query_string)
+        return variables[0][0]
 class GeometryFunctions:
     def __init__(self,sensorweb):
         self.sensorweb = sensorweb
@@ -273,6 +280,7 @@ class SensorWeb:
         self.sensors = SensorFunctions(self)
         self.geospatial = GeospatialFunctions(self)
         self.geometry = GeometryFunctions(self)
+        self.variables = VariableFunctions(self)
         self.maintenance = maintenance.maintenance_class(self)
         if add_ons:
             for add_on in add_ons:

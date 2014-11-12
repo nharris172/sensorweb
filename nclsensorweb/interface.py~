@@ -184,7 +184,7 @@ class GeospatialFunctions:
         query_string = "select hstore_to_matrix(info) as info, ST_AsGeoJSON(info->'geom') as geojson from sensor_data"
         clause = "info -> 'special_tag' = 'GEO' \
                 and proper_timestamp(info->'timestamp') > '%s' \
-                and proper_timestamp(info->'timestamp') < '%s'" % (starttime, endtime,clause)
+                and proper_timestamp(info->'timestamp') < '%s'" % (starttime, endtime,)
                 
         if not_flagged:
             clause+= " and  info ? 'flag' = False "
@@ -241,7 +241,10 @@ class GeospatialFunctions:
                     )
         return geo
     
-    
+class VariableFunctions:
+    def __init__(self,sensorweb):
+        self.sensorweb = sensorweb
+        
 class GeometryFunctions:
     def __init__(self,sensorweb):
         self.sensorweb = sensorweb
@@ -273,6 +276,7 @@ class SensorWeb:
         self.sensors = SensorFunctions(self)
         self.geospatial = GeospatialFunctions(self)
         self.geometry = GeometryFunctions(self)
+        self.variables = VariableFunctions(self)
         self.maintenance = maintenance.maintenance_class(self)
         if add_ons:
             for add_on in add_ons:
