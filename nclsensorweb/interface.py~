@@ -12,17 +12,23 @@ import time
 class DatabaseConnection:
     """handles all database connections"""
     def __init__(self, host, db_name, user, password):
-        connection_string = 'host=%s dbname=%s user=%s password = %s' \
+        self.__connection_string = 'host=%s dbname=%s user=%s password = %s' \
          % (host, db_name, user, password)
         self.database = psycopg2.connect(connection_string)
         self.cur = self.database.cursor()
 
     def query(self, query_string):
         """queries the database and returns results"""
-        self.cur.execute(query_string)
+        try:
+            self.cur.execute(query_string)
         
-        results = self.cur.fetchall()
-        return results
+            results = self.cur.fetchall()
+            return results
+        except:
+            self.database = psycopg2.connect(self.__connection_string)
+            self.cur = self.database.cursor()
+            raise NameError('DB ERROR')
+        
     
     def insert(self, insert_string):
         """inserts data into the database"""
@@ -244,7 +250,11 @@ class GeospatialFunctions:
 class VariableFunctions:
     def __init__(self,sensorweb):
         self.sensorweb = sensorweb
-        
+
+    def get(self,):
+        query_string = "select array_agg(reading_name) from readings" 
+        variables = self.sensorweb.database_connection.query(query_string)
+        return variables[0][0]
 class GeometryFunctions:
     def __init__(self,sensorweb):
         self.sensorweb = sensorweb

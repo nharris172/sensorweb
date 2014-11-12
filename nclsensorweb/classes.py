@@ -20,7 +20,33 @@ class SensorData:
             return None
         return  self.__table_lookup[var_name]
         
+class LiveSensorDataGroup:
+    def __init__(self,sensordatagroup):
+        self.__sensordatagroup = sensordatagroup
        
+    def json(self,proj=None):
+        sensor_data = self.__sensordatagroup.sensor_data
+        latest_sensors = []
+        var = self.__sensordatagroup.variables[0].name
+        
+        for data_blocks in sensor_data:
+            geom = data_blocks.sensor.geom_transformed(proj)
+            if geom:
+                latest_sensors.append(dict(zip(['geom','properties','id'],[geom,{var:data_blocks.table(var).live()},data_blocks.sensor.sensor_id])))
+        if latest_sensors:
+            return{"type": "FeatureCollection","features":latest_sensors}
+       
+    def csv(self,proj=None):
+        sensor_data = self.__sensordatagroup.sensor_data
+        latest_sensors = []
+        var = self.__sensordatagroup.variables[0].name
+        
+        for data_blocks in sensor_data:
+            geom = data_blocks.sensor.geom_transformed(proj)
+            if geom:
+                latest_sensors.append(geom['coordinates']+[data_blocks.table(var).live()])
+        return latest_sensors
+            
 class SensorDataGroup:
     def __init__(self,sensor_data_list,variable_data,vars):
         self.sensor_data = sensor_data_list
@@ -79,6 +105,7 @@ class SensorDataGroup:
                 all_latest.append(table.latest_time())
         all_latest.sort()
         return all_latest[-1]
+    
         
 class AverageSensorDataFunctions:
     def __init__(self,sensordatafunctions):
@@ -155,7 +182,10 @@ class SensorGroupDataFunctions:
         __variable_data = {}
         variables = {}
         checker = db_tools.ReadingChecker(self.sensorgroup.sensorweb.database_connection)
-        for row in self.sensorgroup.sensorweb.database_connection.query(query_string):
+        dbase_data_rows = self.sensorgroup.sensorweb.database_connection.query(query_string)
+        if not dbase_data_rows:
+            return None
+        for row in dbase_data_rows:
             info = dict(row[0])
             units = checker.default_units[info['reading']]
             variable = Variable(info['reading'], units, info['theme'])
@@ -188,8 +218,7 @@ class SensorGroupDataFunctions:
                                 sensor_id_lookup[sensor_id],
                                 data_list
                                 ))
-
-        return SensorDataGroup(sensor_data,__variable_data,variables.values())
+        return LiveSensorDataGroup(SensorDataGroup(sensor_data,__variable_data,variables.values()))
     
     def get(self, starttime, endtime,variable=None):
         
@@ -380,6 +409,15 @@ class Sensor:
         self.extra_info = _extra
         
         self.data = SensorDataFunctions(self.sensor_id,self.__database)
+        
+    def geom_transformed(self,proj):
+        try:
+            geom_text = "ST_Transform('%s'::geometry, %s)"% (self._raw_geom,proj)
+            query_string = "select ST_AsGeoJSON(%s)" % geom_text
+            query_results = self.__database.query(query_string)
+            return simplejson.loads(query_results[0][0])
+        except:
+            return None
         
     def link(self,):
         """links sensor to the database"""
